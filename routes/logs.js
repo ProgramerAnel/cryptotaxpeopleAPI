@@ -5,7 +5,7 @@ const Log = require('../models/log')
 router.get('/', async (req, res) => {
     try {
         const log = await Log.find()
-        res.send(Log)
+        res.send(log)
     } catch (err) {
         res.status(500).json({ message: err.message })
     }
@@ -16,7 +16,7 @@ router.get('/.id', getLogs, (req, res) => {
     res.send(res.log)
 })
 //Create
-router.get('/', async (req, res) => {
+router.post('/', async (req, res) => {
     const log = new Log({
         name: req.body.name,
         dateRequested: req.body.dateRequested
