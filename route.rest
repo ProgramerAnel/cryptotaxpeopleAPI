@@ -1,4 +1,4 @@
-GET http://localhost:3000/logs
+GET http://localhost:5000/logs
 
 ###
 
@@ -9,3 +9,6 @@ Content-Type: application/json
     "name":"ANel"
 }
 
+###
+
+GET https://cryptotaxpeople.herokuapp.com:3000/logs
