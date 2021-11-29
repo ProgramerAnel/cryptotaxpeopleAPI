@@ -1,14 +1,21 @@
-GET http://localhost:5000/logs
+GET http://localhost:5000/licence
 
 ###
 
-POST http://localhost:3000/logs
+GET http://localhost:5000/licence/SSN61a4e6a7ecf9b809ba4b69f0
+
+###
+
+POST http://localhost:5000/licence
 Content-Type: application/json
 
 {
-    "name":"ANel"
+    "first_name":"Himzo",
+    "last_name":"Hodžić",
+    "username":"programerAnel",
+    "email":"programerAnel@gmail.com"
 }
 
 ###
 
-GET https://cryptotaxpeople.herokuapp.com:3000/logs
+GET https://cryptotaxpeople.herokuapp.com/logs
