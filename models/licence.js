@@ -18,8 +18,7 @@ const licenceSchema = new mongoose.Schema({
         required: true
     },
     subscription_end_date: {
-        type: Date,
-        required: true
+        type: Date
     },
     subscription_add_date: {
         type: Date,
@@ -29,6 +28,23 @@ const licenceSchema = new mongoose.Schema({
     licence_key: {
         type: String,
         required: true
+    },
+    computer_registered: {
+        type: String
+    },
+    active: {
+        type: String,
+        required: true
+    },
+    used_transactions: {
+        type: String
+    },
+    days: {
+        type: String,
+        required:true   
+    },
+    subscription_activate_date: {
+        type: Date
     },
 })
 

@@ -13,7 +13,8 @@ Content-Type: application/json
     "first_name":"Himzo",
     "last_name":"Hodžić",
     "username":"programerAnel",
-    "email":"programerAnel@gmail.com"
+    "email":"programerAnel@gmail.com",
+    "days":10
 }
 
 ###
