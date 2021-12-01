@@ -18,7 +18,7 @@ app.set('port', (process.env.PORT || 5000));
 const logRouter = require('./routes/logs')
 const licenceRouter = require('./routes/licences')
 app.use('/logs', logRouter)
-app.use('/licence', licenceRouter)
+app.use(process.env.APP_MASTER_ROUTE_PATH + '/licence', licenceRouter)
 
 app.get('/', function(request, response) {
     var result = 'App is running'
