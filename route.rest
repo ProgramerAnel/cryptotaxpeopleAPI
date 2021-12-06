@@ -2,6 +2,10 @@ GET http://localhost:5000/licence
 
 ###
 
+DELETE http://localhost:5000/licence/deleteall
+
+###
+
 GET http://localhost:5000/licence/SSN61a4e6a7ecf9b809ba4b69f0
 
 ###
@@ -14,9 +18,15 @@ Content-Type: application/json
     "last_name":"Hodžić",
     "username":"programerAnel",
     "email":"programerAnel@gmail.com",
-    "days":10
+    "days":"10"
 }
 
 ###
 
-GET https://cryptotaxpeople.herokuapp.com/logs
+POST http://localhost:5000/licence/activate
+Content-Type: application/json
+
+{
+    "licence_key":"SSN61a544dd7f8acef894b0ec66",
+    "computer_registered":"abc"
+}

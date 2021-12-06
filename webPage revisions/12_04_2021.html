@@ -1,0 +1,646 @@
+<html>
+
+<head>
+
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
+
+  <script>
+    
+    $(window).load(function () {
+
+    $('.hover_bkgr_fricc').click(function(){
+        $('.hover_bkgr_fricc').hide();
+    });
+    $('.popupCloseButton').click(function(){
+        $('.hover_bkgr_fricc').hide();
+    });
+});
+    
+    var usedTransactionHash = [], coingeckoFiatByDaysMap = new Map(), outputDisplayData = [], walletAddress = '', processStarted = false
+    const etherscan_api_key = '18DRAAU1XM9M6P6E58QKN26TCAIBKENG8K'
+    const sleepNow = (delay) => new Promise((resolve) => setTimeout(resolve, delay))
+
+    function addressSubmited() {
+      if (processStarted == false){
+        $('.hover_bkgr_fricc').show()
+        fnResetTable('customers')
+        processStarted = true
+      console.log('Starting proces .......')
+      getAllCoingeckoCoinHistory()
+      walletAddress = $('#wallet_id').val()
+      if (walletAddress == '') {
+        walletAddress = '0x7ABA6E8e3055F6C3217237bDea1936e32Ff4251B'
+      }
+      getAllOpenseaSales(walletAddress, 0, [])}else{
+        console.log('Process already started !')
+      }
+    }
+
+    async function getAllCoingeckoCoinHistory() {
+      abc = await $.get(`https://api.coingecko.com/api/v3/coins/ethereum/market_chart/range?vs_currency=${$("#currency_id")[0].value}&from=1476444262&to=${parseInt(new Date().valueOf() / 1000)}`).done(function (jsonCoingeckoData) {
+        for (rsp of jsonCoingeckoData['prices']) {
+          d = new Date(0)
+          d.setUTCSeconds(rsp[0] / 1000)
+          coingeckoFiatByDaysMap.set(String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear(), rsp[1])
+        }
+      })
+    }
+
+    function getAllOpenseaSales(_walletId, _offset, _allEvents) {
+$.ajaxSetup({
+    headers: { Accept: 'application/json', 'X-API-KEY': '8cf5d64f8b95441cae5cd7bd8f56be73' }
+});
+      $.get('https://api.opensea.io/api/v1/events',
+        {
+          "account_address": _walletId,
+          "only_opensea": "false",
+          "event_type": "successful",
+          "offset": _offset,
+          "limit": "50"
+        }).done(function (jsonOpenseaData) {
+          _allEvents = _allEvents.concat(jsonOpenseaData['asset_events'])
+          _offset += jsonOpenseaData['asset_events'].length
+          if (jsonOpenseaData['asset_events'].length != 0) {
+            getAllOpenseaSales(_walletId, _offset, _allEvents)
+          } else {
+            getAllOpenseaTransfers(_walletId, 0, [], _allEvents)
+          }
+        })
+    }
+
+    function getAllOpenseaTransfers(_walletId, _offset, _allTransfers, _allEvents) {
+$.ajaxSetup({
+    headers: { Accept: 'application/json', 'X-API-KEY': '8cf5d64f8b95441cae5cd7bd8f56be73' }
+});
+      $.get('https://api.opensea.io/api/v1/events',
+        {
+          "account_address": _walletId,
+          "only_opensea": "false",
+          "event_type": "transfer",
+          "offset": _offset,
+          "limit": "50"
+        }).done(function (jsonOpenseaData) {
+          _allTransfers = _allTransfers.concat(jsonOpenseaData['asset_events'])
+          _offset += jsonOpenseaData['asset_events'].length
+          if (jsonOpenseaData['asset_events'].length != 0) {
+            getAllOpenseaTransfers(_walletId, _offset, _allTransfers, _allEvents)
+          } else {
+            readEventsInfo(_allEvents, _allTransfers)
+          }
+        })
+    }
+
+    async function getEtherScanData(_event, _bundle) {
+      try {
+        var _positionHolderDict = {}, _position = 0
+
+        usedTransactionHash.push(_event["transaction"]["transaction_hash"])
+
+        delete $.ajaxSettings.headers["X-API-KEY"]; // Remove header before call
+        delete $.ajaxSettings.headers["Accept"];
+        
+        await $.get(`https://api.etherscan.io/api?module=proxy&action=eth_getTransactionReceipt&txhash=${_event["transaction"]["transaction_hash"]}&apikey=${etherscan_api_key}`).
+          done(async function (_jsonEtherscanData) {
+
+            if (_jsonEtherscanData['message'] == "NOTOK") {
+              console.log('Failed to retrieve etherscan data for token_id : ',(_bundle != undefined) ? _bundle['token_id'] : _event["asset"]["token_id"], ' retrying...')
+              await getEtherScanData(_event, _bundle)
+            } else {
+
+              var _tokenId = (_bundle != undefined) ? _bundle['token_id'] + "#" + _bundle['collection.slug'] : _event["asset"]["token_id"]
+              + "#" + _event['collection_slug']
+              var _sale = (_event["seller"]["address"] != walletAddress.toLowerCase()) ? false : true
+
+              found = outputDisplayData.some(el => el.token_id === _tokenId);
+
+              if (!found) {
+                _positionHolderDict['token_id'] = _tokenId
+                outputDisplayData.push(_positionHolderDict)
+              }
+
+              _position = outputDisplayData.map(function (e) { return e.token_id; }).indexOf(_tokenId);
+              prepareOutputData(_event, _jsonEtherscanData, _position, _sale, _bundle, _tokenId)
+            }
+          })
+
+      }
+
+      catch (ex) {
+        console.log(ex, _event, _bundle)
+      }
+    }
+
+    async function prepareOutputData(_event, _transactionData, _position, _sale, _bundle, _tokenId) {
+      try {
+        var _prepareDate = new Date() > new Date(_event["transaction"]["timestamp"]).addDays(1) ? new Date(_event["transaction"]["timestamp"]).addDays(1) : new Date()
+        var _formattedDateAsString = String(_prepareDate.getDate()).padStart(2, '0') + '-' + String(_prepareDate.getMonth() + 1).padStart(2, '0') + '-' + _prepareDate.getFullYear()
+        var _coinValueOnGivenDate = coingeckoFiatByDaysMap.get(_formattedDateAsString)
+
+        var _gasAmount = parseInt(_transactionData['result']['gasUsed']) * (parseInt(_transactionData['result']['effectiveGasPrice']) * 10 ** -18)
+        var _totalEthAmount = _event['total_price'] * 10 ** -18
+
+        if (_bundle != undefined) {
+          _totalEthAmount = _totalEthAmount / _event['asset_bundle']['assets'].length
+          outputDisplayData[_position]['token_name'] = _bundle['name']
+          outputDisplayData[_position]['token_opensea_link'] = _bundle['permalink']
+          _gasAmount = _gasAmount / _event['asset_bundle']['assets'].length
+        } else {
+          outputDisplayData[_position]['token_name'] = _event['asset']['name']
+          outputDisplayData[_position]['token_opensea_link'] = _event['asset']['permalink']
+        }
+
+        if (_sale) {
+          if (_event['winner_account']['user'] != undefined & _event['winner_account']['user']['username'] != null) {
+            outputDisplayData[_position]['wallet_sold'] = _event['winner_account']['user']['username']
+          } else {
+            outputDisplayData[_position]['wallet_sold'] = _event['winner_account']['address']
+          }
+        }
+        else {
+          if (_event['seller']['user'] != undefined & _event['seller']['user']['username'] != null) {
+            outputDisplayData[_position]['wallet_purchase'] = _event['seller']['user']['username']
+          } else {
+            outputDisplayData[_position]['wallet_purchase'] = _event['seller']['address']
+          }
+        }
+
+        if (_sale) {
+          outputDisplayData[_position]['transaction_hash_sold'] = _event["transaction"]["transaction_hash"]
+          outputDisplayData[_position]['token_id_sold'] = _tokenId
+          outputDisplayData[_position]['transaction_timestamp_sold'] = _event["transaction"]["timestamp"]
+          outputDisplayData[_position]['eth_amount_sold'] = _totalEthAmount
+          outputDisplayData[_position]['currency_sold'] = _totalEthAmount * _coinValueOnGivenDate
+          outputDisplayData[_position]['gas_sold'] = _gasAmount * _coinValueOnGivenDate
+          outputDisplayData[_position]['transaction_sold'] = _event["transaction"]["transaction_hash"]
+        } else {
+          outputDisplayData[_position]['transaction_purchase'] = _event["transaction"]["transaction_hash"]
+          outputDisplayData[_position]['transaction_hash_purchase'] = _event["transaction"]["transaction_hash"]
+          outputDisplayData[_position]['token_id_purchase'] = _tokenId
+          outputDisplayData[_position]['transaction_timestamp_purchase'] = _event["transaction"]["timestamp"]
+          outputDisplayData[_position]['eth_amount_purchase'] = _totalEthAmount
+          outputDisplayData[_position]['currency_purchase'] = _totalEthAmount * _coinValueOnGivenDate
+          outputDisplayData[_position]['gas_purchase'] = _gasAmount * _coinValueOnGivenDate
+        }
+      } catch (ex) {
+        console.log(ex)
+      }
+    }
+
+    async function readEventsInfo(_allEvents, _allTransfers) {
+      var _progressCounter = 0, _progressWith = 0, _progressElement = document.getElementById("myBar");
+      var _progressStepIncrease = 100 / _allEvents.length
+
+      for (var event of _allEvents) {
+        try {
+          _progressCounter += 1
+          _progressWith += _progressStepIncrease;
+          _progressElement.style.width = _progressWith + "%";
+
+          if (event['asset_bundle']) {
+            for (var nestedEvent of event['asset_bundle']['assets']) {
+              _progressCounter += 1
+              await hfRetryFunction(50, getEtherScanData, event, nestedEvent, _progressCounter)
+            }
+          } else {
+            await hfRetryFunction(50, getEtherScanData, event, undefined, _progressCounter)
+          }
+        } catch (ex) {
+          console.log('Exception occured !', ex)
+        }
+      }
+
+      document.getElementById("table-scroll").style.height = '400px'
+      document.getElementById("table-scroll").style.overflowY = 'scroll'
+
+      var _container = document.getElementById('customers');
+      var _tbody = document.createElement('tbody');
+
+      for (i = 0; i < outputDisplayData.length; i++) {
+        var _row = document.createElement('tr');
+
+        (outputDisplayData[i]['token_name'] == null) ? outputDisplayData[i]['token_name'] = '#' + outputDisplayData[i]['token_id'] : outputDisplayData[i]['token_name']
+        _row.appendChild(hfAddCellToTable(i + 1, ""));
+        _row.appendChild(hfAddCellLinkAndTitleToTable(outputDisplayData[i]['token_opensea_link'], outputDisplayData[i]['token_name'], "", outputDisplayData[i]['token_id']))
+
+        var _unusedTransfers = _allTransfers.filter(function (_event) { return !usedTransactionHash.includes(_event["transaction"]["transaction_hash"]) })
+        var _transferDetails = _unusedTransfers.filter(function (event) { return event["asset"]["token_id"] + "#" 
+          + event['collection_slug'] == outputDisplayData[i]['token_id'] })
+
+        outputDisplayData[i]['currency_purchase'] = (outputDisplayData[i]['currency_purchase'] == undefined) ? 0 : outputDisplayData[i]['currency_purchase']
+        outputDisplayData[i]['gas_purchase'] = (outputDisplayData[i]['gas_purchase'] == undefined) ? 0 : outputDisplayData[i]['gas_purchase']
+
+        // if we have details about transfer this means NFT token is either transferd in or out from wallet
+        if (_transferDetails.length > 0) {
+          if (_transferDetails[0]['to_account']['address'].toLowerCase() == walletAddress.toLowerCase()) {
+            var cell = document.createElement('td')
+            cell.setAttribute('colspan', '5')
+            cell.setAttribute('style', "text-align: center;")
+            cell.textContent = "TRANSFER IN"
+            _row.appendChild(cell)
+            prepare_date = new Date(outputDisplayData[i]['transaction_timestamp_sold'])
+            formatted_date = String(prepare_date.getDate()).padStart(2, '0') + '/' + String(prepare_date.getMonth() + 1).padStart(2, '0') + '/' + prepare_date.getFullYear()
+            _row.appendChild(hfAddCellToTable(formatted_date))
+            _row.appendChild(hfAddCellLinkAndTitleToTable('https://opensea.io/' + outputDisplayData[i]['wallet_sold'], outputDisplayData[i]['wallet_sold'], "", outputDisplayData[i]['wallet_sold']))
+            _row.appendChild(hfAddCellLinkToTable("https://etherscan.io/tx/" + outputDisplayData[i]['transaction_sold'], Number(outputDisplayData[i]['eth_amount_sold']).toFixed(2), "td_aligned"));
+            _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['currency_sold']).toFixed(2), "td_aligned"));
+           // _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['gas_sold']).toFixed(2), "td_aligned"));
+            _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['currency_sold'] - outputDisplayData[i]['currency_purchase']).toFixed(2), "td_aligned"));
+           // _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['gas_sold'] + outputDisplayData[i]['gas_purchase']).toFixed(2), "td_aligned"))
+          } else if (_transferDetails[0]['from_account']['address'].toLowerCase() == walletAddress.toLowerCase()) {
+            _row.appendChild(hfAddCellLinkAndTitleToTable('https://opensea.io/' + outputDisplayData[i]['wallet_purchase'], outputDisplayData[i]['wallet_purchase'], "", outputDisplayData[i]['wallet_purchase']))
+            prepare_date = new Date(outputDisplayData[i]['transaction_timestamp_purchase'])
+            formatted_date = String(prepare_date.getDate()).padStart(2, '0') + '/' + String(prepare_date.getMonth() + 1).padStart(2, '0') + '/' + prepare_date.getFullYear()
+            _row.appendChild(hfAddCellToTable(formatted_date))
+            _row.appendChild(hfAddCellLinkToTable("https://etherscan.io/tx/" + outputDisplayData[i]['transaction_purchase'], Number(outputDisplayData[i]['eth_amount_purchase']).toFixed(2), "td_aligned"));
+            _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['currency_purchase']).toFixed(2), "td_aligned"));
+            _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['gas_purchase']).toFixed(2), "td_aligned"));
+            var cell = document.createElement('td')
+            cell.setAttribute('colspan', '7')
+            cell.setAttribute('style', "text-align: center;")
+            cell.textContent = "TRANSFER OUT"
+            _row.appendChild(cell)
+          }
+        }
+
+        // if we don't have info about transfer that means NFT is either still in wallet or sold
+        else {
+          if (outputDisplayData[i]['transaction_timestamp_purchase'] == undefined) {
+            var cell = document.createElement('td')
+            cell.setAttribute('colspan', '5')
+            cell.setAttribute('style', "text-align: center;")
+            cell.textContent = "TRANSFERRED IN BUNDLE"
+            _row.appendChild(cell)
+          } else {
+            _row.appendChild(hfAddCellLinkAndTitleToTable('https://opensea.io/' + outputDisplayData[i]['wallet_purchase'], outputDisplayData[i]['wallet_purchase'], "", outputDisplayData[i]['wallet_purchase']))
+            prepare_date = new Date(outputDisplayData[i]['transaction_timestamp_purchase'])
+            formatted_date = String(prepare_date.getDate()).padStart(2, '0') + '/' + String(prepare_date.getMonth() + 1).padStart(2, '0') + '/' + prepare_date.getFullYear()
+            _row.appendChild(hfAddCellToTable(formatted_date))
+            _row.appendChild(hfAddCellLinkToTable("https://etherscan.io/tx/" + outputDisplayData[i]['transaction_purchase'], Number(outputDisplayData[i]['eth_amount_purchase']).toFixed(2), "td_aligned"));
+            _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['currency_purchase']).toFixed(2), "td_aligned"));
+            _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['gas_purchase']).toFixed(2), "td_aligned"));
+          }
+
+          if (outputDisplayData[i]['transaction_timestamp_sold'] == undefined) {
+            var cell = document.createElement('td')
+            cell.setAttribute('colspan', '7')
+            cell.setAttribute('style', "text-align: center;")
+            cell.textContent = "IN WALLET"
+            _row.appendChild(cell)
+          }
+          else {
+            prepare_date = new Date(outputDisplayData[i]['transaction_timestamp_sold'])
+            formatted_date = String(prepare_date.getDate()).padStart(2, '0') + '/' + String(prepare_date.getMonth() + 1).padStart(2, '0') + '/' + prepare_date.getFullYear()
+            _row.appendChild(hfAddCellToTable(formatted_date))
+            _row.appendChild(hfAddCellLinkAndTitleToTable('https://opensea.io/' + outputDisplayData[i]['wallet_sold'], outputDisplayData[i]['wallet_sold'], "", outputDisplayData[i]['wallet_sold']))
+            _row.appendChild(hfAddCellLinkToTable("https://etherscan.io/tx/" + outputDisplayData[i]['transaction_sold'], Number(outputDisplayData[i]['eth_amount_sold']).toFixed(2), "td_aligned"));
+            _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['currency_sold']).toFixed(2), "td_aligned"));
+          //  _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['gas_sold']).toFixed(2), "td_aligned"));
+            _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['currency_sold'] - outputDisplayData[i]['currency_purchase']).toFixed(2), "td_aligned"));
+           // _row.appendChild(hfAddCellToTable(Number(outputDisplayData[i]['gas_sold'] + outputDisplayData[i]['gas_purchase']).toFixed(2), "td_aligned"))
+
+          }
+        }
+        _tbody.appendChild(_row);
+      }
+      _container.appendChild(_tbody)
+      processStarted = false
+    }
+
+    function hfAddCellToTable(_val, class_name) {
+      var cell = document.createElement('td')
+      cell.id = class_name
+      cell.textContent = _val
+      return cell
+    }
+
+    function hfAddCellWithTitleToTable(_val, class_name, _title) {
+      var cell = document.createElement('td')
+      cell.id = class_name
+      cell.title = _title
+      cell.textContent = _val
+      return cell
+    }
+
+    function hfAddCellLinkToTable(_val, _text, class_name) {
+      var link = document.createElement("a");
+      link.setAttribute("href", _val)
+      link.className = "someCSSclass";
+      link.target = "_blank"
+      var linkText = document.createTextNode(_text);
+      link.appendChild(linkText);
+      var cell = document.createElement('td')
+      cell.appendChild(link)
+      cell.id = class_name
+      return cell
+    }
+
+    function hfAddCellLinkAndTitleToTable(_val, _text, class_name, _title) {
+      var link = document.createElement("a");
+      link.setAttribute("href", _val)
+      link.className = "someCSSclass";
+      link.target = "_blank"
+      var linkText = document.createTextNode(_text);
+      link.appendChild(linkText);
+      var cell = document.createElement('td')
+      cell.title = _title
+      cell.appendChild(link)
+      cell.id = class_name
+      return cell
+    }
+
+    async function hfRetryFunction(maxRetries, fn, _event, _undefined) {
+      return await fn(_event, _undefined).catch(async function (err) {
+        if (maxRetries <= 0) {
+          console.log('Here !')
+          throw err;
+        }
+        await sleepNow(1000)
+        return hfRetryFunction(maxRetries - 1, fn, _event, _undefined);
+      });
+    }
+
+    Date.prototype.addDays = function (days) {
+      var date = new Date(this.valueOf());
+      date.setDate(date.getDate() + days);
+      return date;
+    }
+    
+    function fnResetTable(table){
+      var tableHeaderRowCount = 2;
+      var table = document.getElementById(table);
+      var rowCount = table.rows.length;
+      for (var i = tableHeaderRowCount; i < rowCount; i++) {
+          table.deleteRow(tableHeaderRowCount);
+      }
+      
+      var element = document.getElementById('table-scroll');
+      element.style.height = '50%'
+		
+    }
+    
+    function fnExcelReport(table) {
+    var tab_text = "<table border='2px'><tr bgcolor='#87AFC6'>";
+    var textRange; var j = 0;
+    tab = document.getElementById(table); // id of table
+
+    for (j = 0; j < tab.rows.length; j++) {
+        tab_text = tab_text + tab.rows[j].innerHTML + "</tr>";
+        //tab_text=tab_text+"</tr>";
+    }
+
+    tab_text = tab_text + "</table>";
+    tab_text = tab_text.replace(/<A[^>]*>|<\/A>/g, "");//remove if u want links in your table
+    tab_text = tab_text.replace(/<img[^>]*>/gi, ""); // remove if u want images in your table
+    tab_text = tab_text.replace(/<input[^>]*>|<\/input>/gi, ""); // reomves input params
+
+    var ua = window.navigator.userAgent;
+    var msie = ua.indexOf("MSIE ");
+
+    if (msie > 0 || !!navigator.userAgent.match(/Trident.*rv\:11\./))      // If Internet Explorer
+    {
+        txtArea1.document.open("txt/html", "replace");
+        txtArea1.document.write(tab_text);
+        txtArea1.document.close();
+        txtArea1.focus();
+
+        sa = txtArea1.document.execCommand("SaveAs", true, new Date().valueOf() + ".xls");
+    }
+    else                 //other browser not tested on IE 11
+        sa = window.open('data:application/vnd.ms-excel,' + encodeURIComponent(tab_text));
+
+    return (sa);
+}
+    
+
+  </script>
+</head>
+
+
+
+<style>
+  .input_myT[type=text],
+  .select_myT {
+    width: 100%;
+    padding: 12px 20px;
+    margin: 8px 0;
+    display: inline-block;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+
+  .input_myT[type=submit] {
+    width: 100%;
+    background-color: #092537 !important;
+    color: white;
+    padding: 14px 20px;
+    margin: 8px 0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .input_myT[type=submit]:hover {
+    background-color: #45a049;
+  }
+  
+  .div_myT {
+    border-radius: 5px;
+    background-color: #f2f2f2;
+    padding: 20px;
+  }
+
+  /* # TABLE */
+  #customers {
+    font-family: Arial, Helvetica, sans-serif;
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  #customers td,
+  #customers th {
+    border: 1px solid #ddd;
+    padding: 8px;
+  }
+
+  #customers tr:nth-child(even) {
+    background-color: #f2f2f2;
+  }
+
+  #customers tr:hover {
+    background-color: #ddd;
+  }
+
+  #customers th {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    text-align: left;
+    background-color: #3C6E71 !important;
+    color: white;
+  }
+
+  #table-wrapper {
+    position: relative;
+  }
+
+  #table-scroll {
+    height: 50%;
+    overflow: auto;
+  }
+
+  #table-wrapper table {
+    width: 100%;
+
+  }
+
+  #table-wrapper table thead th .text {
+    position: absolute;
+    top: -20px;
+    z-index: 2;
+    height: 20px;
+    width: 35%;
+    border: 1px solid red;
+  }
+
+  #myProgress {
+    width: 100%;
+    background-color: transparent;
+  }
+
+  #myBar {
+    width: 0%;
+    height: 30px;
+    background-color: #3C6E71;
+  }
+   
+  /* Popup box BEGIN */
+.hover_bkgr_fricc{
+    /* background:rgba(0,0,0,.4); */
+    cursor:pointer;
+    display:none;
+    height:100%;
+    position:absolute;
+    text-align:center;
+    top:50;
+    width:50%;
+    z-index:10000;
+}
+.hover_bkgr_fricc .helper{
+    display:inline-block;
+    height:100%;
+    vertical-align:middle;
+}
+.hover_bkgr_fricc > div {
+    background-color: #fff;
+    box-shadow: 10px 10px 60px #555;
+    display: inline-block;
+    height: auto;
+    max-width: 551px;
+   /* min-height: 100px; */
+    vertical-align: middle;
+    width: 60%;
+    position: fixed;
+    border-radius: 8px;
+    padding: 15px 5%;
+}
+.popupCloseButton {
+    background-color: #fff;
+    border: 3px solid #999;
+    border-radius: 50px;
+    cursor: pointer;
+    display: inline-block;
+    font-family: arial;
+    font-weight: bold;
+    position: absolute;
+    top: -20px;
+    right: -20px;
+    font-size: 25px;
+    line-height: 30px;
+    width: 30px;
+    height: 30px;
+    text-align: center;
+}
+.popupCloseButton:hover {
+    background-color: #ccc;
+}
+.trigger_popup_fricc {
+    cursor: pointer;
+    font-size: 20px;
+    margin: 20px;
+    display: inline-block;
+    font-weight: bold;
+}
+/* Popup box BEGIN */
+  
+</style>
+
+<body>
+  <div>
+    <label for="lname">Wallet address </label>
+    <input class="input_myT" type="text" id="wallet_id" placeholder="Please enter wallet address..">
+
+    <label for="country">Output Currency</label>
+    <select class="select_myT" id="currency_id" name="country">
+      <option value="gbp">gbp</option>
+      <option value="usd">usd</option>
+      <option value="eur">eur</option>
+    </select>
+
+    <div id="myProgress">
+      <div id="myBar"></div>
+    </div>
+    <div id="alert_placeholder"></div>
+
+
+
+    <input class="input_myT" type="submit" value="Submit" onclick="addressSubmited()">
+    
+    <div class="hover_bkgr_fricc">
+    <span class="helper"></span>
+    <div>
+        <div class="popupCloseButton">×</div>
+        <p>Processing, depending on the amount of transactions this might take a few minutes.</p>
+    </div>
+</div>
+  </div>
+
+  <div id="table-wrapper">
+    <div id="table-scroll">
+      <table id="customers" class="table table-hover table-light table-bordered border border-3">
+        <thead class="table-Light">
+          <tr>
+            <th style="text-align: center;" colspan="7" scope="col">P U R C H A S E</th>
+            <th style="text-align: center;" colspan="7" scope="col">S O L D</th>
+          </tr>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Token</th>
+            <th scope="col">From</th>
+            <th scope="col">Purchase</th>
+            <th scope="col">Amt. ETH</th>
+            <th scope="col">Amt. In Currency</th>
+            <th scope="col">Gas Fee</th>
+            <th scope="col">Sold</th>
+            <th scope="col">To</th>
+            <th scope="col">Amt. ETH</th>
+            <th scope="col">Amt. In Currency</th>
+            <th scope="col">Profit/Loss</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  
+
+<div style="display: inline">
+  <div style="width:50%; display: inline-block; float:left; margin-right: 10px;"><input class="input_myT" type="submit" value="Reset" onclick="fnResetTable('customers')"></div>
+  <div style="width: 49%; display: inline-block;"><input class="input_myT" type="submit" value="Export" onclick="fnExcelReport('customers')" ></div>
+</div>
+
+ 
+</body> 
+
+</html>
