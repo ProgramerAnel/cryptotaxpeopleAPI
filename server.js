@@ -42,7 +42,7 @@ client.login(process.env.BOT_TOKEN)
 
 client.on('ready', () => {
     console.log('Bot online !')
-    client.channels.fetch("936735369481822320").then((channel) => {
+    client.channels.fetch("955718125083557938").then((channel) => {
         const helpMessage = new MessageEmbed({
             title: "ONLINE!",
             color: "GREEN",
