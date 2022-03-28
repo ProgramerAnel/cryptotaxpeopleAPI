@@ -35,7 +35,21 @@ const client = new Discord.Client({ intents: ["GUILDS", "GUILD_MESSAGES"] })
 var tools = require('./discord/listener');
 client.on('message', tools.listener)
 client.login(process.env.BOT_TOKEN)
+// client.on('ready', () => {
+//     console.log('Bot online !')
+//     }
+// )
+
 client.on('ready', () => {
     console.log('Bot online !')
-    }
-)
+    client.channels.fetch("936735369481822320").then((channel) => {
+        const helpMessage = new MessageEmbed({
+            title: "ONLINE!",
+            color: "GREEN",
+            description: `I'm online! Use \`${PREFIX_COMMAND}help <command>\` to gain more information about a command :smiley:\nIf I appear to be offline, visit [my page]('https://cryptotaxpeople.herokuapp.com/') to wake me up`
+        });
+        (channel).send({ embeds: [helpMessage] }).catch((err) => {
+            console.log("ERROR ON READY", err)
+        })
+    })
+})
