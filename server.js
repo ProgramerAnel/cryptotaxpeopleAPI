@@ -32,7 +32,7 @@ app.get('/', function(request, response) {
 // This runs discord bot 
 const Discord = require('discord.js');
 const client = new Discord.Client({ intents: ["GUILDS", "GUILD_MESSAGES"] })
-const MessageEmbed = new Discord.MessageEmbed()
+  
 
 
 var tools = require('./discord/listener');
@@ -46,12 +46,12 @@ client.login(process.env.BOT_TOKEN)
 client.on('ready', () => {
     console.log('Bot online !')
     client.channels.fetch("955718125083557938").then((channel) => {
-        const helpMessage = new MessageEmbed({
-            title: "ONLINE!",
-            color: "GREEN",
-            description: `If I appear to be offline, visit [my page]('https://cryptotaxpeople.herokuapp.com/') to wake me up`
-        });
-        (channel).send({ embeds: [helpMessage] }).catch((err) => {
+        // const helpMessage = new MessageEmbed({
+        //     title: "ONLINE!",
+        //     color: "GREEN",
+        //     description: `If I appear to be offline, visit [my page]('https://cryptotaxpeople.herokuapp.com/') to wake me up`
+        // });
+        (channel).send(`If I appear to be offline, visit [my page]('https://cryptotaxpeople.herokuapp.com/') to wake me up`).catch((err) => {
             console.log("ERROR ON READY", err)
         })
     })
