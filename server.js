@@ -46,7 +46,7 @@ client.on('ready', () => {
         const helpMessage = new MessageEmbed({
             title: "ONLINE!",
             color: "GREEN",
-            description: `I'm online! Use \`${PREFIX_COMMAND}help <command>\` to gain more information about a command :smiley:\nIf I appear to be offline, visit [my page]('https://cryptotaxpeople.herokuapp.com/') to wake me up`
+            description: `If I appear to be offline, visit [my page]('https://cryptotaxpeople.herokuapp.com/') to wake me up`
         });
         (channel).send({ embeds: [helpMessage] }).catch((err) => {
             console.log("ERROR ON READY", err)
