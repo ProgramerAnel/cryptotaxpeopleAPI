@@ -51,7 +51,7 @@ client.on('ready', () => {
         //     color: "GREEN",
         //     description: `If I appear to be offline, visit [my page]('https://cryptotaxpeople.herokuapp.com/') to wake me up`
         // });
-        (channel).send(`If I appear to be offline, visit [my page]('https://cryptotaxpeople.herokuapp.com/') to wake me up`).catch((err) => {
+        (channel).send("If I appear to be offline, visit 'https://cryptotaxpeople.herokuapp.com/' to wake me up").catch((err) => {
             console.log("ERROR ON READY", err)
         })
     })
