@@ -32,6 +32,9 @@ app.get('/', function(request, response) {
 // This runs discord bot 
 const Discord = require('discord.js');
 const client = new Discord.Client({ intents: ["GUILDS", "GUILD_MESSAGES"] })
+const MessageEmbed = new Discord.MessageEmbed()
+
+
 var tools = require('./discord/listener');
 client.on('message', tools.listener)
 client.login(process.env.BOT_TOKEN)
